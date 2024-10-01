@@ -2,7 +2,7 @@
 This file defines various methods to illustrate simple concepts from the 7480 information theory class
 Also includes a standardized way to show plots
 First version: 9/15/2024
-This version: 9/15/2024
+This version: 10/1/2024
 https://northeastern-datalab.github.io/cs7840/fa24/calendar.html
 """
 
@@ -36,12 +36,60 @@ def calculate_entropy(P):
     # # return np.nansum(P*(-np.log2(P)), axis=0)     # alternative that avoids -0 by ignores -0's / entrywise multiplication
 
 
+def calculate_relative_entropy(P, Q):
+    """
+    calculate relative entropy for a 1-dimensional probability distributions given as Numpy arrays P and Q
+    """
+    assert type(P).__module__ == "numpy"
+    assert P.ndim == 1
+    assert Q.ndim == 1
+    assert np.all(P >= 0)
+    assert np.all(Q >= 0)
+    assert P.size == Q.size
+    assert math.isclose(np.sum(P), 1, abs_tol=1e-5)
+    assert math.isclose(np.sum(Q), 1, abs_tol=1e-5)
+
+    with np.errstate(divide='ignore'):  # most efficient to temporarily ignore the inf error warning, also allows simple generalization to multi-dimensional arrays
+        res1 = np.log2(P)
+        res2 = -np.log2(Q)
+    res1[np.where(P == 0)] = 0       # adding res1+res2 before the replacement with 0 does not work
+    res2[np.where(P == 0)] = 0
+    return P.dot(res1+res2)
+
+
+def calculate_relative_entropy_vector(P_vec, Q_vec):
+    """
+    calculate Shannon entropy for a 2-dimensional vector of probability distribution as Numpy array
+    Example P_vec input:
+        P_vec = np.array([[0.25, 0.25, 0.5],
+                          [1/8, 1/8, 3/4]])
+    Returns a 1D np array with number of entries = number of rows in P_vec
+    """
+    assert type(P_vec).__module__ == "numpy"
+    assert type(Q_vec).__module__ == "numpy"
+    assert P_vec.ndim == 2
+    assert Q_vec.ndim == 2
+    assert P_vec.size == Q_vec.size
+    assert np.all(P_vec >= 0)
+    assert np.all(Q_vec >= 0)
+    np.testing.assert_allclose(np.sum(P_vec, axis=1), 1, atol=1e-5)
+    np.testing.assert_allclose(np.sum(Q_vec, axis=1), 1, atol=1e-5)
+
+    with np.errstate(divide='ignore'):  # https://stackoverflow.com/questions/21752989/numpy-efficiently-avoid-0s-when-taking-logmatrix
+        res1 = np.log2(P_vec)
+        res2 = -np.log2(Q_vec)
+    res1[np.where(P_vec == 0)] = 0  # adding res1+res2 before the replacement with 0 does not work
+    res2[np.where(P_vec == 0)] = 0
+    return np.nansum(P_vec * (res1+res2), axis=1)  # allows generalization to 2D arrays
+
+
 def calculate_entropy_vector(P_vec):
     """
     calculate Shannon entropy for a 2-dimensional vector of probability distribution as Numpy array
     Example P_vec input:
         P_vec = np.array([[0.25, 0.25, 0.5],
                           [1/8, 1/8, 3/4]])
+    Returns a 1D np array with number of entries = number of rows in P_vec
     """
     assert type(P_vec).__module__ == "numpy"
     assert P_vec.ndim == 2
@@ -96,8 +144,7 @@ def markov_chain_sample(P_matrix, n, int_to_char=None):
     return result_string
 
 
-
-def plot_figure(x, y, low, high,
+def plot_figure(x, y, low, high, ymax=1.02,
                 title=None, pdfname=None, linewidth=None, label=None,
                 logscale=False, linestyle=None, marker=None, markevery=None,
                 xmin=None, show_legend=True, fine_grid=False,
@@ -109,7 +156,6 @@ def plot_figure(x, y, low, high,
     Example usage:
     plot_figure(theta, (y_nb, y_bi), low, high, title =r"Samejima-IRT vs. Bock-IRT",
                label=("1", "2", "3", "4", "1", "2", "3", "4"), linewidth=(5, 5, 5, 5, 1, 1, 1, 1))
-
     Adapted from: https://github.com/northeastern-datalab/HITSnDIFFs/blob/main/IRT/irt_models.py
     """
     mpl.rc('font', **{'family': 'sans-serif', 'sans-serif': [u'Arial', u'Liberation Sans']})
@@ -141,14 +187,15 @@ def plot_figure(x, y, low, high,
                  markevery=None if markevery is None else markevery[i],
                  color=color[i] if color is not None else plt.rcParams['axes.prop_cycle'].by_key()['color'][i]) # assign colors from default color cycle unless explicitly specified
 
-    plt.xlim(low, high)
     if logscale:
         plt.yscale("log")
+        plt.xscale("log")
         plt.grid(True, which="both")
         if xmin:
             plt.ylim(xmin, 2)
     else:
-        plt.ylim(-0.02, 1.02)
+        plt.ylim(-0.02, ymax)
+        plt.xlim(low, high)
         plt.grid(True)
     plt.xlabel(xlabel, fontsize=15)
     plt.ylabel(ylabel, fontsize=15)
@@ -180,8 +227,6 @@ def plot_figure(x, y, low, high,
         ax.yaxis.set_minor_locator(AutoMinorLocator(5))     # multiplicator for number of minor gridlines
         ax.grid(which='major', alpha=0.7)
         ax.grid(which='minor', alpha=0.2)
-
-
 
     if pdfname:
         plt.savefig("figures/" + pdfname + ".pdf",
