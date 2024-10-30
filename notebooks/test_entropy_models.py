@@ -24,20 +24,35 @@ def test_calculate_entropy():
     # tests 1d entropy  calculation
     print("\ntest_calculate_entropy():")
 
-    P1 = np.ones(3) / 3
-    P2 = np.array([0.25, 0.25, 0.5])
-    P3 = np.array([1/8, 1/8, 3/4])
-    P4 = np.array([0, 0, 1])
-    P5 = np.array([0.25, 0.75])
-    P6 = np.array([1/2, 1/3, 1/6])
+    P = np.ones(3) / 3
+    print(calculate_entropy(P))
 
-    print(calculate_entropy(P1))
-    print(calculate_entropy(P2))
-    print(calculate_entropy(P3))
-    print(calculate_entropy(P4))
-    print(calculate_entropy(P5))
-    print(calculate_entropy(P6))
+    P = np.array([0.25, 0.25, 0.5])
+    print(calculate_entropy(P))
 
+    P = np.array([1/8, 1/8, 3/4])
+    print(calculate_entropy(P))
+
+    P = np.array([0, 0, 1])
+    print(calculate_entropy(P))
+
+    P = np.array([1/2, 1/3, 1/6])
+    print(calculate_entropy(P))
+
+    P = np.array([0.25, 0.75])
+    print(calculate_entropy(P))
+
+    P = np.array([9/14, 5/14])
+    print(calculate_entropy(P))
+
+    P = np.array([5 / 14, 4 / 14, 5 / 14])      # Mitchell Tennis example split information Outlook
+    print(calculate_entropy(P))
+
+    P = np.array([4 / 14, 6 / 14, 4 / 14])      # Mitchell Tennis example split information Temp
+    print(calculate_entropy(P))
+
+    P = np.array([8 / 14, 6 / 14])      # Mitchell Tennis example split information Wind
+    print(calculate_entropy(P))
 
 def test_calculate_entropy_vector():
     # tests 2d entropy calculations
@@ -264,12 +279,12 @@ def test_assymmetric_relative_entropy():
 
 if __name__ == '__main__':
     test_calculate_entropy()
-    test_calculate_entropy_vector()
-    test_time_calculate_entropy()
-    test_show_entropy_binary()
-    test_show_coin_flip()
-    test_markov_chain_restaurants()
-    test_markov_chain_binary()
-    test_calculate_relative_entropy()
-    test_calculate_relative_entropy_vector()
-    test_assymmetric_relative_entropy()
+    # test_calculate_entropy_vector()
+    # test_time_calculate_entropy()
+    # test_show_entropy_binary()
+    # test_show_coin_flip()
+    # test_markov_chain_restaurants()
+    # test_markov_chain_binary()
+    # test_calculate_relative_entropy()
+    # test_calculate_relative_entropy_vector()
+    # test_assymmetric_relative_entropy()
