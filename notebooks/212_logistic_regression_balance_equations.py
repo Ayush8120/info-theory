@@ -1,7 +1,7 @@
 """
 This file uses the methods from logistic_regression.py to illustrate simple concepts from the 7480 information theory class
 First version: 10/28/2024
-This version: 10/30/2024
+This version: 11/12/2024
 https://northeastern-datalab.github.io/cs7840/fa24/calendar.html
 """
 
@@ -12,7 +12,7 @@ from logistic_regression import(create_matrix_plot)
 
 
 # Create input binary indicator (n x m) matrix X, and n-dimensional label vector y with k different labels
-CHOICE = 3
+CHOICE = 5
 
 filetype="png"
 C = 1e5         # regularization for logistic regression. Default is 1. The higher, the less regularization
@@ -79,7 +79,7 @@ elif CHOICE == 4:   # tennis
 
     y = np.array([0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0])  # Multinomial classes
     k = 2
-    C = 1
+    C = 1e5
 
 
 elif CHOICE == 5:
@@ -105,6 +105,12 @@ model = LogisticRegression(solver='lbfgs', C=C)  # C is regularization. Is 1 by 
 model.fit(X, y)
 proba = model.predict_proba(X)  # Predict the probability distribution for each data point
 
+coefficients = model.coef_      # Get the coefficients (parameters for each feature)
+intercept = model.intercept_    # Get the intercept (bias term)
+
+print("Coefficients:", coefficients)
+print("Intercept:", intercept)
+
 
 # Represent the original training labels as an indicator matrix
 label_indicator_matrix = np.zeros((y.shape[0], k))  # Create a nxk matrix of zeros
@@ -126,12 +132,12 @@ print("Sum of estimation column: {}".format(X[:,j].dot(proba[:,c])))
 
 
 # Show Input Data X as Indicator Matrix
-create_matrix_plot(X, 'Fig_lr_input_data_matrix' + '_' + str(CHOICE), add_text=False, show_colorbar=False,filetype=filetype)
+create_matrix_plot(X, 'Fig_212_lr_input_data_matrix' + '_' + str(CHOICE), add_text=False, show_colorbar=False,filetype=filetype)
 
 # Show Original Training Labels as Indicator Matrix
-create_matrix_plot(label_indicator_matrix, 'Fig_lr_label_indicator_matrix' + '_' + str(CHOICE), add_text=False, show_colorbar=False,filetype=filetype)
+create_matrix_plot(label_indicator_matrix, 'Fig_212_lr_label_indicator_matrix' + '_' + str(CHOICE), add_text=False, show_colorbar=False,filetype=filetype)
 
 # Show Predicted Probabilities, with text inside the squares, and color bar
-create_matrix_plot(proba, 'Fig_lr_predicted_probabilities' + '_' + str(CHOICE), add_text=True, filetype=filetype)
+create_matrix_plot(proba, 'Fig_212_lr_predicted_probabilities' + '_' + str(CHOICE), add_text=True, filetype=filetype)
 
 

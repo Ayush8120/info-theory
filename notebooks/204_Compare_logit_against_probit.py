@@ -28,6 +28,8 @@ logit_cdf = logistic.cdf(x, loc=0, scale=logit_scale)
 # Set font size and line width globally
 plt.rcParams.update({'font.size': 16, 'lines.linewidth': 3})
 
+
+
 # Plot 1: Probability Density Function (PDF)
 plt.figure(figsize=(8, 6))
 plt.plot(x, normal_pdf, label='Probit', color='blue')
@@ -38,8 +40,10 @@ plt.ylabel('Density')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig('figures/Fig_pdf_comparison_probit_logit.png')
+plt.savefig('figures/Fig_204_pdf_comparison_probit_logit.png')
 plt.show()
+
+
 
 # Plot 2: Cumulative Distribution Function (CDF)
 plt.figure(figsize=(8, 6))
@@ -51,5 +55,5 @@ plt.ylabel('Cumulative Probability')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig('figures/Fig_cdf_comparison_probit_logit.png')
+plt.savefig('figures/Fig_204_cdf_comparison_probit_logit.png')
 plt.show()
