@@ -54,6 +54,13 @@ def test_calculate_entropy():
     P = np.array([8 / 14, 6 / 14])      # Mitchell Tennis example split information Wind
     print(calculate_entropy(P))
 
+    P = np.array([0.575, 0.425])      # Earlier distortion intro example
+    print(calculate_entropy(P))
+
+    P = np.array([0.6125, 0.3875])      # Distortion intro example
+    print(calculate_entropy(P))
+
+
 def test_calculate_entropy_vector():
     # tests 2d entropy calculations
     print("\ntest_calculate_entropy_vector():")
