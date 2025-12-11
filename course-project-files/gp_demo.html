@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaussian Process Visualization</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const GPVisualization = () => {
+          const canvasRef = useRef(null);
+          const [trainingData, setTrainingData] = useState([]);
+          const [lengthScale, setLengthScale] = useState(0.3);
+          const [noise, setNoise] = useState(0.05);
+          const [showGroundTruth, setShowGroundTruth] = useState(true);
+          const [autoDemo, setAutoDemo] = useState(false);
+          
+          // SVG icons
+          const PlayIcon = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          );
+          
+          const RotateIcon = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+          );
+          
+          const InfoIcon = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          );
+
+          // Ground truth function
+          const groundTruth = (x) => {
+            return Math.sin(4 * Math.PI * x) * 0.5 + 0.5;
+          };
+
+          // RBF Kernel
+          const rbfKernel = (x1, x2, lengthScale) => {
+            const diff = x1 - x2;
+            return Math.exp(-0.5 * (diff * diff) / (lengthScale * lengthScale));
+          };
+
+          // Compute GP posterior
+          const computeGP = (testX, trainX, trainY, lengthScale, noise) => {
+            if (trainX.length === 0) {
+              return {
+                mean: Array(testX.length).fill(0.5),
+                std: Array(testX.length).fill(0.3)
+              };
+            }
+
+            const n = trainX.length;
+            const m = testX.length;
+
+            // Compute kernel matrices
+            const K = Array(n).fill(0).map(() => Array(n).fill(0));
+            for (let i = 0; i < n; i++) {
+              for (let j = 0; j < n; j++) {
+                K[i][j] = rbfKernel(trainX[i], trainX[j], lengthScale);
+                if (i === j) K[i][j] += noise * noise;
+              }
+            }
+
+            // Compute K_star (test vs train)
+            const K_star = Array(m).fill(0).map(() => Array(n).fill(0));
+            for (let i = 0; i < m; i++) {
+              for (let j = 0; j < n; j++) {
+                K_star[i][j] = rbfKernel(testX[i], trainX[j], lengthScale);
+              }
+            }
+
+            // Compute K_star_star (test vs test)
+            const K_star_star = Array(m).fill(0).map(() => Array(m).fill(0));
+            for (let i = 0; i < m; i++) {
+              for (let j = 0; j < m; j++) {
+                K_star_star[i][j] = rbfKernel(testX[i], testX[j], lengthScale);
+              }
+            }
+
+            // Solve K * alpha = y
+            const K_copy = K.map(row => [...row]);
+            const y_copy = [...trainY];
+            
+            // Forward elimination
+            for (let i = 0; i < n; i++) {
+              let maxRow = i;
+              for (let k = i + 1; k < n; k++) {
+                if (Math.abs(K_copy[k][i]) > Math.abs(K_copy[maxRow][i])) {
+                  maxRow = k;
+                }
+              }
+              [K_copy[i], K_copy[maxRow]] = [K_copy[maxRow], K_copy[i]];
+              [y_copy[i], y_copy[maxRow]] = [y_copy[maxRow], y_copy[i]];
+
+              for (let k = i + 1; k < n; k++) {
+                const factor = K_copy[k][i] / K_copy[i][i];
+                y_copy[k] -= factor * y_copy[i];
+                for (let j = i; j < n; j++) {
+                  K_copy[k][j] -= factor * K_copy[i][j];
+                }
+              }
+            }
+
+            // Back substitution
+            const alpha = Array(n).fill(0);
+            for (let i = n - 1; i >= 0; i--) {
+              alpha[i] = y_copy[i];
+              for (let j = i + 1; j < n; j++) {
+                alpha[i] -= K_copy[i][j] * alpha[j];
+              }
+              alpha[i] /= K_copy[i][i];
+            }
+
+            // Compute mean
+            const mean = Array(m).fill(0);
+            for (let i = 0; i < m; i++) {
+              for (let j = 0; j < n; j++) {
+                mean[i] += K_star[i][j] * alpha[j];
+              }
+            }
+
+            // Compute variance
+            const variance = Array(m).fill(0);
+            
+            for (let i = 0; i < m; i++) {
+              const v_i = [...K_star[i]];
+              const K_copy2 = K.map(row => [...row]);
+              
+              for (let j = 0; j < n; j++) {
+                for (let k = j + 1; k < n; k++) {
+                  const factor = K_copy2[k][j] / K_copy2[j][j];
+                  v_i[k] -= factor * v_i[j];
+                  for (let l = j; l < n; l++) {
+                    K_copy2[k][l] -= factor * K_copy2[j][l];
+                  }
+                }
+              }
+              
+              const K_inv_k_star = Array(n).fill(0);
+              for (let j = n - 1; j >= 0; j--) {
+                K_inv_k_star[j] = v_i[j];
+                for (let k = j + 1; k < n; k++) {
+                  K_inv_k_star[j] -= K_copy2[j][k] * K_inv_k_star[k];
+                }
+                K_inv_k_star[j] /= K_copy2[j][j];
+              }
+              
+              let reduction = 0;
+              for (let j = 0; j < n; j++) {
+                reduction += K_star[i][j] * K_inv_k_star[j];
+              }
+              
+              variance[i] = Math.max(0.001, K_star_star[i][i] - reduction);
+            }
+
+            const std = variance.map(v => Math.sqrt(v));
+
+            return { mean, std };
+          };
+
+          const handleCanvasClick = (e) => {
+            if (autoDemo) return;
+            
+            const canvas = canvasRef.current;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = 1 - (e.clientY - rect.top) / rect.height;
+            
+            const yNoisy = groundTruth(x) + (Math.random() - 0.5) * noise * 2;
+            
+            setTrainingData([...trainingData, { x, y: yNoisy }]);
+          };
+
+          const reset = () => {
+            setTrainingData([]);
+            setAutoDemo(false);
+          };
+
+          const startAutoDemo = () => {
+            setTrainingData([]);
+            setAutoDemo(true);
+          };
+
+          useEffect(() => {
+            if (!autoDemo) return;
+            
+            const interval = setInterval(() => {
+              const x = Math.random();
+              const y = groundTruth(x) + (Math.random() - 0.5) * noise * 2;
+              
+              setTrainingData(prev => {
+                if (prev.length >= 20) {
+                  setAutoDemo(false);
+                  return prev;
+                }
+                return [...prev, { x, y }];
+              });
+            }, 800);
+
+            return () => clearInterval(interval);
+          }, [autoDemo, noise]);
+
+          useEffect(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            const testX = Array(200).fill(0).map((_, i) => i / 199);
+            const trainX = trainingData.map(d => d.x);
+            const trainY = trainingData.map(d => d.y);
+
+            const { mean, std } = computeGP(testX, trainX, trainY, lengthScale, noise);
+
+            // Draw confidence interval
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(0, height * (1 - (mean[0] + 2 * std[0])));
+            for (let i = 0; i < testX.length; i++) {
+              const x = testX[i] * width;
+              const y = height * (1 - (mean[i] + 2 * std[i]));
+              ctx.lineTo(x, y);
+            }
+            for (let i = testX.length - 1; i >= 0; i--) {
+              const x = testX[i] * width;
+              const y = height * (1 - (mean[i] - 2 * std[i]));
+              ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw mean prediction
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, height * (1 - mean[0]));
+            for (let i = 1; i < testX.length; i++) {
+              const x = testX[i] * width;
+              const y = height * (1 - mean[i]);
+              ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw ground truth
+            if (showGroundTruth) {
+              ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
+              ctx.lineWidth = 2;
+              ctx.setLineDash([5, 5]);
+              ctx.beginPath();
+              for (let i = 0; i < testX.length; i++) {
+                const x = testX[i] * width;
+                const y = height * (1 - groundTruth(testX[i]));
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+              }
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+
+            // Draw training points
+            trainingData.forEach(point => {
+              ctx.fillStyle = '#ef4444';
+              ctx.beginPath();
+              ctx.arc(point.x * width, height * (1 - point.y), 6, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+            });
+
+            // Draw grid
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 10; i++) {
+              const y = (i / 10) * height;
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(width, y);
+              ctx.stroke();
+            }
+
+          }, [trainingData, lengthScale, noise, showGroundTruth]);
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
+              <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-8">
+                  <h1 className="text-4xl font-bold text-white mb-2">
+                    Gaussian Process Regression
+                  </h1>
+                  <p className="text-slate-300 text-lg">
+                    Click to add training data and watch the model learn!
+                  </p>
+                </div>
+
+                <div className="bg-slate-800 rounded-lg shadow-2xl p-6 mb-6">
+                  <canvas
+                    ref={canvasRef}
+                    width={800}
+                    height={400}
+                    className="w-full cursor-crosshair rounded border-2 border-slate-700"
+                    onClick={handleCanvasClick}
+                  />
+                  
+                  <div className="mt-4 flex gap-4 items-center justify-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-1 bg-indigo-500"></div>
+                      <span className="text-slate-300">Mean Prediction</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-4 bg-indigo-500 opacity-20"></div>
+                      <span className="text-slate-300">±2σ Confidence</span>
+                    </div>
+                    {showGroundTruth && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-1 border-t-2 border-dashed border-green-500"></div>
+                        <span className="text-slate-300">Ground Truth</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-white"></div>
+                      <span className="text-slate-300">Training Data</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-slate-800 rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4">Controls</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-slate-300 text-sm block mb-2">
+                          Length Scale: {lengthScale.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="0.8"
+                          step="0.05"
+                          value={lengthScale}
+                          onChange={(e) => setLengthScale(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                        <p className="text-slate-400 text-xs mt-1">
+                          Controls smoothness of predictions
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-300 text-sm block mb-2">
+                          Noise Level: {noise.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min="0.01"
+                          max="0.2"
+                          step="0.01"
+                          value={noise}
+                          onChange={(e) => setNoise(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                        <p className="text-slate-400 text-xs mt-1">
+                          Observation noise in data
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showTruth"
+                          checked={showGroundTruth}
+                          onChange={(e) => setShowGroundTruth(e.target.checked)}
+                          className="rounded"
+                        />
+                        <label htmlFor="showTruth" className="text-slate-300 text-sm">
+                          Show Ground Truth Function
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-6">
+                      <button
+                        onClick={startAutoDemo}
+                        disabled={autoDemo}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 text-white py-2 px-4 rounded flex items-center justify-center gap-2 transition"
+                      >
+                        <PlayIcon />
+                        Auto Demo
+                      </button>
+                      <button
+                        onClick={reset}
+                        className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 px-4 rounded flex items-center justify-center gap-2 transition"
+                      >
+                        <RotateIcon />
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800 rounded-lg p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <InfoIcon />
+                      <h3 className="text-white font-semibold">Key Insights</h3>
+                    </div>
+                    
+                    <div className="space-y-3 text-sm text-slate-300">
+                      <div className="bg-slate-700 p-3 rounded">
+                        <strong className="text-indigo-400">Data Points: {trainingData.length}</strong>
+                        <p className="text-xs mt-1">
+                          {trainingData.length === 0 
+                            ? "Start with prior beliefs (wide uncertainty)"
+                            : trainingData.length < 5
+                            ? "Model is starting to learn local patterns"
+                            : trainingData.length < 10
+                            ? "Uncertainty decreasing in observed regions"
+                            : "Model has strong predictions where data exists"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p>
+                          <strong>Blue Band:</strong> ±2σ confidence interval (95% confidence)
+                        </p>
+                        <p>
+                          <strong>Uncertainty:</strong> High in unexplored regions, low near data
+                        </p>
+                        <p>
+                          <strong>Prior:</strong> Without data, GP assumes smooth function near 0.5
+                        </p>
+                        <p>
+                          <strong>Posterior:</strong> Updates beliefs based on observations
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-lg p-6">
+                  <h3 className="text-white font-semibold mb-3">How Gaussian Processes Work</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-300">
+                    <div className="bg-slate-700 p-4 rounded">
+                      <div className="text-indigo-400 font-semibold mb-2">1. Prior Distribution</div>
+                      <p>Start with beliefs about smooth functions (like sine waves). Every function has a probability.</p>
+                    </div>
+                    <div className="bg-slate-700 p-4 rounded">
+                      <div className="text-indigo-400 font-semibold mb-2">2. Observe Data</div>
+                      <p>Each point you click gives evidence about the true function. Some functions become more likely.</p>
+                    </div>
+                    <div className="bg-slate-700 p-4 rounded">
+                      <div className="text-indigo-400 font-semibold mb-2">3. Posterior Update</div>
+                      <p>Combine prior beliefs with data using Bayes' rule. Get mean prediction + uncertainty.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GPVisualization />);
+    </script>
+</body>
+</html>
